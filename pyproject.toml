@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gh-autoloop"
+version = "0.1.0"
+description = "Auto-iterate GitHub Issues using local Claude Code CLI"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+gh-autoloop = "gh_autoloop.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gh_autoloop"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
