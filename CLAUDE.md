@@ -39,7 +39,7 @@ gh-autoloop/
 | 问题 | 决策 |
 |------|------|
 | Issues 来源 | `gh issue list --json` (本地 gh CLI) |
-| AI 执行器 | 本地 `claude --print <task>` CLI |
+| AI 执行器 | 本地 `claude --dangerously-skip-permissions --print --output-format text <task>` CLI（已验证参数格式）|
 | 验证方式 | 自动检测 pytest → npm test → make test |
 | Commit message | `fix: <issue title> (closes #<num>)` |
 | 失败处理 | `git checkout -- .` 自动回滚 |
@@ -94,11 +94,12 @@ gh-autoloop status
 ## 当前状态
 
 - [x] 项目创建，架构设计完成
-- [ ] `planner.py` — 实现 GitHub Issues 读取
-- [ ] `executor.py` — 实现 claude CLI 调用
-- [ ] `verifier.py` — 实现测试自动检测
-- [ ] `git_ops.py` — 实现 git 操作
-- [ ] `loop.py` — 实现主循环
-- [ ] `cli.py` — 实现 CLI 入口
-- [ ] 测试用例
-- [ ] README 完善
+- [x] `planner.py` — 实现 GitHub Issues 读取（含超时、JSON 解析错误处理）
+- [x] `executor.py` — 实现 claude CLI 调用（含 `--dangerously-skip-permissions`、超时、OSError 处理）
+- [x] `verifier.py` — 实现测试自动检测（使用 `shutil.which`、含超时处理）
+- [x] `git_ops.py` — 实现 git 操作（push 失败不抛异常、rollback 错误吞没并记录）
+- [x] `loop.py` — 实现主循环（含 catch-all 异常处理、错误输出截断）
+- [x] `cli.py` — 实现 CLI 入口（含前置依赖检查、异常处理）
+- [x] `__init__.py` — 数据类 + `check_prerequisites()` 前置检查
+- [x] 测试用例（6 个测试文件，覆盖单元测试和集成测试）
+- [x] README 完善

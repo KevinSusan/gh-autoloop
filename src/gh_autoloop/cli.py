@@ -3,6 +3,7 @@ import json
 import logging
 import sys
 from pathlib import Path
+from gh_autoloop import PrerequisiteError, check_prerequisites
 from gh_autoloop.loop import AutoLoop
 
 
@@ -33,13 +34,22 @@ def main():
     )
 
     if args.command == "run":
-        loop = AutoLoop(
-            repo_path=args.repo,
-            max_iter=args.max_iter,
-            label=args.label,
-            timeout=args.timeout,
-        )
-        results = loop.run()
+        try:
+            check_prerequisites()
+        except PrerequisiteError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+        try:
+            loop = AutoLoop(
+                repo_path=args.repo,
+                max_iter=args.max_iter,
+                label=args.label,
+                timeout=args.timeout,
+            )
+            results = loop.run()
+        except Exception as e:
+            print(f"Fatal error: {e}", file=sys.stderr)
+            sys.exit(1)
         total = len(results)
         success = sum(1 for r in results if r.status == "success")
         print(f"\nDone: {success}/{total} issues resolved.")
@@ -50,11 +60,15 @@ def main():
         if not result_file.exists():
             print("No loop_result.json found. Run 'gh-autoloop run' first.")
             sys.exit(1)
-        data = json.loads(result_file.read_text())
+        try:
+            data = json.loads(result_file.read_text())
+        except (json.JSONDecodeError, OSError) as e:
+            print(f"Error reading results: {e}", file=sys.stderr)
+            sys.exit(1)
         s = data["summary"]
         print(f"Last run: {s['total']} total, {s['success']} success, {s['failed']} failed, {s['skipped']} skipped")
         for r in data["results"]:
-            icon = "v" if r["status"] == "success" else "x"
+            icon = "✓" if r["status"] == "success" else "✗"
             commit = f" [{r['commit']}]" if r.get("commit") else ""
             print(f"  [{icon}] #{r['issue']} {r['title']}{commit}")
 

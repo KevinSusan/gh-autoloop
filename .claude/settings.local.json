@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(pip install:*)",
+      "Bash(where python)",
+      "Bash(where python3)",
+      "Bash(where py)",
+      "Bash(ls \"C:/Python3\"*)",
+      "Read(//c/Program Files/**)",
+      "Read(//c/Users/20307/Desktop/project/gh-autoloop/$HOME/AppData/Local/Programs/Python/**)",
+      "Bash(wc:*)",
+      "Bash(py:*)",
+      "Bash(PYTHONPATH=src py:*)",
+      "Bash(where python:*)",
+      "Bash(PYTHONPATH=src python:*)"
+    ]
+  }
+}

@@ -29,22 +29,34 @@ class AutoLoop:
         if self.max_iter and len(tasks) > self.max_iter:
             tasks = tasks[: self.max_iter]
 
-        results = []
+        results: list[IterationResult] = []
         for i, task in enumerate(tasks, 1):
             logger.info(f"[{i}/{len(tasks)}] Processing issue #{task.number}: {task.title}")
             result = self._process_task(task)
             results.append(result)
-            status_icon = "v" if result.status == "success" else "x"
-            logger.info(f"  [{status_icon}] {result.status}" + (f" → {result.commit}" if result.commit else ""))
+            icon = "✓" if result.status == "success" else "✗"
+            detail = f" → {result.commit}" if result.commit else ""
+            logger.info(f"  [{icon}] {result.status}{detail}")
 
         self._save_results(results)
         return results
 
     def _process_task(self, task) -> IterationResult:
+        try:
+            return self._do_process(task)
+        except Exception as e:
+            logger.error(f"  Unexpected error: {e}")
+            self.git.rollback(self.repo_path)
+            return IterationResult(task=task, status="failed", error=str(e))
+
+    def _do_process(self, task) -> IterationResult:
         exec_result = self.executor.run(task, self.repo_path)
         if not exec_result.success:
             self.git.rollback(self.repo_path)
-            return IterationResult(task=task, status="failed", error=f"Executor failed (exit {exec_result.exit_code})")
+            return IterationResult(
+                task=task, status="failed",
+                error=f"Executor failed (exit {exec_result.exit_code}): {exec_result.output[:200]}",
+            )
 
         if not self.git.has_changes(self.repo_path):
             return IterationResult(task=task, status="skipped", error="No changes made")
@@ -52,7 +64,9 @@ class AutoLoop:
         verify = self.verifier.verify(self.repo_path)
         if not verify.passed:
             self.git.rollback(self.repo_path)
-            return IterationResult(task=task, status="failed", error=f"Tests failed:\n{verify.output[:500]}")
+            return IterationResult(
+                task=task, status="failed", error=f"Tests failed:\n{verify.output[:500]}"
+            )
 
         commit_hash = self.git.commit_and_push(task, self.repo_path)
         return IterationResult(task=task, status="success", commit=commit_hash)

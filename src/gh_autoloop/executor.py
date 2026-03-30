@@ -3,15 +3,19 @@ from gh_autoloop import Task, ExecutionResult
 
 
 class Executor:
-    def __init__(self, timeout: int = 600):
+    def __init__(self, timeout: int = 600, skip_permissions: bool = True):
         self.timeout = timeout
+        self.skip_permissions = skip_permissions
 
     def run(self, task: Task, repo_path: str) -> ExecutionResult:
         """Execute a task using local Claude Code CLI."""
         prompt = task.to_prompt()
+        cmd = ["claude", "--print", "--output-format", "text", prompt]
+        if self.skip_permissions:
+            cmd.insert(1, "--dangerously-skip-permissions")
         try:
             result = subprocess.run(
-                ["claude", "--print", prompt],
+                cmd,
                 capture_output=True,
                 text=True,
                 cwd=repo_path,
@@ -24,3 +28,5 @@ class Executor:
             )
         except subprocess.TimeoutExpired:
             return ExecutionResult(success=False, output="Execution timed out", exit_code=-1)
+        except OSError as e:
+            return ExecutionResult(success=False, output=f"Failed to launch claude: {e}", exit_code=-1)

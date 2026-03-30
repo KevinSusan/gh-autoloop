@@ -1,28 +1,29 @@
+import shutil
 import subprocess
-from pathlib import Path
 from gh_autoloop import VerifyResult
 
-
+# (executable_name, test_command_args)
 TEST_COMMANDS = [
-    ["pytest", "--tb=short", "-q"],
-    ["npm", "test"],
-    ["make", "test"],
+    ("pytest", ["pytest", "--tb=short", "-q"]),
+    ("npm", ["npm", "test"]),
+    ("make", ["make", "test"]),
 ]
+
+VERIFY_TIMEOUT = 300  # 5 minutes
 
 
 class Verifier:
     def verify(self, repo_path: str) -> VerifyResult:
         """Auto-detect and run test command."""
-        for cmd in TEST_COMMANDS:
-            if self._command_exists(cmd[0], repo_path):
-                result = subprocess.run(cmd, capture_output=True, text=True, cwd=repo_path)
-                status = "passed" if result.returncode == 0 else "failed"
-                return VerifyResult(status=status, output=result.stdout + result.stderr)
+        for exe, cmd in TEST_COMMANDS:
+            if not shutil.which(exe):
+                continue
+            try:
+                result = subprocess.run(
+                    cmd, capture_output=True, text=True, cwd=repo_path, timeout=VERIFY_TIMEOUT
+                )
+            except subprocess.TimeoutExpired:
+                return VerifyResult(status="failed", output=f"Test command '{cmd[0]}' timed out")
+            status = "passed" if result.returncode == 0 else "failed"
+            return VerifyResult(status=status, output=result.stdout + result.stderr)
         return VerifyResult(status="skipped", output="No test command found")
-
-    def _command_exists(self, cmd: str, cwd: str) -> bool:
-        try:
-            subprocess.run([cmd, "--version"], capture_output=True, cwd=cwd, timeout=5)
-            return True
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            return False
