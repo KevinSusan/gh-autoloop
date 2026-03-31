@@ -6,6 +6,20 @@ logger = logging.getLogger(__name__)
 
 
 class GitOps:
+    def close_issue(self, number: int, repo_path: str) -> None:
+        """Close the GitHub issue via gh CLI. Errors are logged but not raised."""
+        try:
+            result = subprocess.run(
+                ["gh", "issue", "close", str(number)],
+                capture_output=True, text=True, cwd=repo_path, timeout=30,
+            )
+            if result.returncode != 0:
+                logger.warning(f"Failed to close issue #{number}: {result.stderr.strip()}")
+            else:
+                logger.info(f"  Closed issue #{number}")
+        except (subprocess.TimeoutExpired, OSError) as e:
+            logger.warning(f"Failed to close issue #{number}: {e}")
+
     def commit_and_push(self, task: Task, repo_path: str) -> str:
         """Stage all changes, commit, push. Returns commit hash.
 

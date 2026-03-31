@@ -1,12 +1,18 @@
+from __future__ import annotations
 import json
 import subprocess
+from typing import Optional
 from gh_autoloop import Task
 
 
 class Planner:
-    def get_tasks(self, repo_path: str, label: str | None = None) -> list[Task]:
+    def get_tasks(
+        self, repo_path: str, label: Optional[str] = None, gh_repo: Optional[str] = None
+    ) -> list[Task]:
         """Fetch open GitHub Issues via gh CLI."""
         cmd = ["gh", "issue", "list", "--json", "number,title,body", "--state", "open", "--limit", "100"]
+        if gh_repo:
+            cmd += ["--repo", gh_repo]
         if label:
             cmd += ["--label", label]
         try:

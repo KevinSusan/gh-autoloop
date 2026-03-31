@@ -15,6 +15,9 @@ gh-autoloop = "gh_autoloop.cli:main"
 [tool.hatch.build.targets.wheel]
 packages = ["src/gh_autoloop"]
 
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
 [tool.ruff]
 line-length = 100
 

@@ -193,7 +193,7 @@ class TestProcessTaskErrorHandling:
 class TestSaveResults:
     """Tests for AutoLoop._save_results()."""
 
-    def test_writes_json_file(self, tmp_repo):
+    def test_writes_json_file(self, tmp_repo, tmp_path):
         loop = AutoLoop(repo_path=tmp_repo)
         task = Task(number=1, title="Bug A", body="desc")
         results = [
@@ -201,7 +201,8 @@ class TestSaveResults:
         ]
         loop._save_results(results)
 
-        output_file = Path(tmp_repo) / "loop_result.json"
+        repo_name = Path(tmp_repo).name
+        output_file = Path.home() / ".gh-autoloop" / "results" / f"{repo_name}.json"
         assert output_file.exists()
 
         data = json.loads(output_file.read_text())
@@ -212,7 +213,7 @@ class TestSaveResults:
         assert data["results"][0]["issue"] == 1
         assert data["results"][0]["commit"] == "abc123"
 
-    def test_mixed_results_summary(self, tmp_repo):
+    def test_mixed_results_summary(self, tmp_repo, tmp_path):
         loop = AutoLoop(repo_path=tmp_repo)
         results = [
             IterationResult(task=Task(1, "A", ""), status="success", commit="abc"),
@@ -221,7 +222,8 @@ class TestSaveResults:
         ]
         loop._save_results(results)
 
-        data = json.loads((Path(tmp_repo) / "loop_result.json").read_text())
+        repo_name = Path(tmp_repo).name
+        data = json.loads((Path.home() / ".gh-autoloop" / "results" / f"{repo_name}.json").read_text())
         assert data["summary"]["total"] == 3
         assert data["summary"]["success"] == 1
         assert data["summary"]["failed"] == 1

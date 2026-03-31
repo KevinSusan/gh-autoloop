@@ -1,32 +1,42 @@
+import logging
 import subprocess
 from gh_autoloop import Task, ExecutionResult
 
+logger = logging.getLogger(__name__)
+
 
 class Executor:
-    def __init__(self, timeout: int = 600, skip_permissions: bool = True):
+    def __init__(self, timeout: int = 600):
         self.timeout = timeout
-        self.skip_permissions = skip_permissions
 
     def run(self, task: Task, repo_path: str) -> ExecutionResult:
-        """Execute a task using local Claude Code CLI."""
+        """Execute a task using local Claude Code CLI with streaming output."""
         prompt = task.to_prompt()
-        cmd = ["claude", "--print", "--output-format", "text", prompt]
-        if self.skip_permissions:
-            cmd.insert(1, "--dangerously-skip-permissions")
+        cmd = ["claude", "--dangerously-skip-permissions", "--print", prompt]
         try:
-            result = subprocess.run(
+            proc = subprocess.Popen(
                 cmd,
-                capture_output=True,
-                text=True,
-                cwd=repo_path,
-                timeout=self.timeout,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, cwd=repo_path,
             )
-            return ExecutionResult(
-                success=result.returncode == 0,
-                output=result.stdout + result.stderr,
-                exit_code=result.returncode,
-            )
-        except subprocess.TimeoutExpired:
-            return ExecutionResult(success=False, output="Execution timed out", exit_code=-1)
         except OSError as e:
             return ExecutionResult(success=False, output=f"Failed to launch claude: {e}", exit_code=-1)
+
+        output_lines: list = []
+        try:
+            assert proc.stdout is not None
+            for line in proc.stdout:
+                output_lines.append(line)
+                logger.debug(line.rstrip())
+            proc.wait(timeout=self.timeout)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+            return ExecutionResult(success=False, output="Execution timed out", exit_code=-1)
+
+        output = "".join(output_lines)
+        return ExecutionResult(
+            success=proc.returncode == 0,
+            output=output,
+            exit_code=proc.returncode or 0,
+        )

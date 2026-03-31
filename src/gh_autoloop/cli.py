@@ -20,6 +20,8 @@ def main():
     run_parser.add_argument("--max-iter", type=int, default=0, help="Max issues to process (0 = no limit)")
     run_parser.add_argument("--label", default=None, help="Only process issues with this label")
     run_parser.add_argument("--timeout", type=int, default=600, help="Seconds per task (default: 600)")
+    run_parser.add_argument("--dry-run", action="store_true", help="List issues without executing")
+    run_parser.add_argument("--gh-repo", default=None, metavar="OWNER/REPO", help="GitHub repo (e.g. owner/repo); defaults to remote of --repo")
     run_parser.add_argument("--verbose", "-v", action="store_true", help="Verbose logging")
 
     # status command
@@ -45,6 +47,8 @@ def main():
                 max_iter=args.max_iter,
                 label=args.label,
                 timeout=args.timeout,
+                dry_run=args.dry_run,
+                gh_repo=args.gh_repo,
             )
             results = loop.run()
         except Exception as e:
@@ -56,9 +60,10 @@ def main():
         sys.exit(0 if success > 0 or total == 0 else 1)
 
     elif args.command == "status":
-        result_file = Path(args.repo) / "loop_result.json"
+        repo_name = Path(args.repo).resolve().name
+        result_file = Path.home() / ".gh-autoloop" / "results" / f"{repo_name}.json"
         if not result_file.exists():
-            print("No loop_result.json found. Run 'gh-autoloop run' first.")
+            print(f"No results found for '{repo_name}'. Run 'gh-autoloop run' first.")
             sys.exit(1)
         try:
             data = json.loads(result_file.read_text())

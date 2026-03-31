@@ -1,6 +1,7 @@
 import shutil
 import subprocess
 from dataclasses import dataclass
+from typing import Optional
 
 
 class PrerequisiteError(RuntimeError):
@@ -59,5 +60,5 @@ class VerifyResult:
 class IterationResult:
     task: Task
     status: str  # "success" | "failed" | "skipped"
-    commit: str | None = None
-    error: str | None = None
+    commit: Optional[str] = None
+    error: Optional[str] = None
