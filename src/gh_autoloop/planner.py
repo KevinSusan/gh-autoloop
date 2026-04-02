@@ -17,7 +17,8 @@ class Planner:
             cmd += ["--label", label]
         try:
             result = subprocess.run(
-                cmd, capture_output=True, text=True, cwd=repo_path, timeout=30
+                cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                cwd=repo_path, timeout=30,
             )
         except subprocess.TimeoutExpired:
             raise RuntimeError("gh issue list timed out after 30s")

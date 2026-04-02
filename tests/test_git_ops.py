@@ -130,5 +130,7 @@ class TestHasChanges:
             ["git", "status", "--porcelain"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             cwd="/repo",
         )

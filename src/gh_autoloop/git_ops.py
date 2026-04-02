@@ -11,7 +11,8 @@ class GitOps:
         try:
             result = subprocess.run(
                 ["gh", "issue", "close", str(number)],
-                capture_output=True, text=True, cwd=repo_path, timeout=30,
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                cwd=repo_path, timeout=30,
             )
             if result.returncode != 0:
                 logger.warning(f"Failed to close issue #{number}: {result.stderr.strip()}")
@@ -29,13 +30,15 @@ class GitOps:
         subprocess.run(["git", "add", "-A"], cwd=repo_path, check=True)
         subprocess.run(["git", "commit", "-m", msg], cwd=repo_path, check=True)
         push = subprocess.run(
-            ["git", "push"], capture_output=True, text=True, cwd=repo_path, timeout=60
+            ["git", "push"], capture_output=True, text=True,
+            encoding="utf-8", errors="replace", cwd=repo_path, timeout=60,
         )
         if push.returncode != 0:
             logger.warning(f"git push failed (commit kept locally): {push.stderr.strip()}")
         result = subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],
-            capture_output=True, text=True, cwd=repo_path, check=True,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            cwd=repo_path, check=True,
         )
         return result.stdout.strip()
 
@@ -51,6 +54,6 @@ class GitOps:
         """Check if there are any uncommitted changes."""
         result = subprocess.run(
             ["git", "status", "--porcelain"],
-            capture_output=True, text=True, cwd=repo_path,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=repo_path,
         )
         return bool(result.stdout.strip())

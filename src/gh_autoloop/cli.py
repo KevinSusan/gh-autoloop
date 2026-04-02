@@ -1,10 +1,14 @@
 import argparse
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 from gh_autoloop import PrerequisiteError, check_prerequisites
 from gh_autoloop.loop import AutoLoop
+
+# Force UTF-8 for all subprocess I/O on Windows (avoids GBK decode errors in Python 3.8)
+os.environ.setdefault("PYTHONUTF8", "1")
 
 
 def main():

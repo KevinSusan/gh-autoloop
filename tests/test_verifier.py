@@ -31,6 +31,8 @@ class TestVerifierVerify:
             ["pytest", "--tb=short", "-q"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             cwd="/repo",
             timeout=VERIFY_TIMEOUT,
         )
@@ -71,6 +73,8 @@ class TestVerifierVerify:
             ["npm", "test"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             cwd="/repo",
             timeout=VERIFY_TIMEOUT,
         )
@@ -89,6 +93,8 @@ class TestVerifierVerify:
             ["make", "test"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             cwd="/repo",
             timeout=VERIFY_TIMEOUT,
         )

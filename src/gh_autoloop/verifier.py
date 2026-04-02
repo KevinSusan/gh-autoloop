@@ -20,7 +20,8 @@ class Verifier:
                 continue
             try:
                 result = subprocess.run(
-                    cmd, capture_output=True, text=True, cwd=repo_path, timeout=VERIFY_TIMEOUT
+                    cmd, capture_output=True, text=True,
+                    encoding="utf-8", errors="replace", cwd=repo_path, timeout=VERIFY_TIMEOUT,
                 )
             except subprocess.TimeoutExpired:
                 return VerifyResult(status="failed", output=f"Test command '{cmd[0]}' timed out")

@@ -17,7 +17,8 @@ def check_prerequisites() -> None:
             )
     # Verify gh is authenticated
     r = subprocess.run(
-        ["gh", "auth", "status"], capture_output=True, text=True, timeout=10
+        ["gh", "auth", "status"], capture_output=True, text=True,
+        encoding="utf-8", errors="replace", timeout=10,
     )
     if r.returncode != 0:
         raise PrerequisiteError(
