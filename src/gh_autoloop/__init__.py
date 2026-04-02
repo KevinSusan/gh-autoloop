@@ -63,3 +63,5 @@ class IterationResult:
     status: str  # "success" | "failed" | "skipped"
     commit: Optional[str] = None
     error: Optional[str] = None
+    elapsed: Optional[float] = None   # task duration in seconds
+    diff: Optional[str] = None        # git diff snapshot (truncated to 4000 chars)

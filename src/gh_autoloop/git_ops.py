@@ -57,3 +57,11 @@ class GitOps:
             capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=repo_path,
         )
         return bool(result.stdout.strip())
+
+    def get_diff(self, repo_path: str, max_chars: int = 4000) -> str:
+        """Return current working tree diff, truncated to max_chars."""
+        result = subprocess.run(
+            ["git", "diff"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=repo_path,
+        )
+        return result.stdout[:max_chars]

@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 import logging
+import time
 from pathlib import Path
 from typing import Optional
 from gh_autoloop import IterationResult
@@ -56,18 +57,38 @@ class AutoLoop:
             detail = f" → {result.commit}" if result.commit else ""
             logger.info(f"  [{icon}] {result.status}{detail}")
 
+        self._print_summary(results)
         self._save_results(results)
         return results
 
+    def _print_summary(self, results: list[IterationResult]) -> None:
+        """Print a formatted summary table after all iterations complete."""
+        logger.info("\n=== Run Summary ===")
+        logger.info(f"{'#':>4}  {'Title':<40}  {'Status':<8}  {'Elapsed':>8}")
+        logger.info("-" * 68)
+        for r in results:
+            elapsed_str = f"{r.elapsed:.1f}s" if r.elapsed is not None else "-"
+            title = r.task.title[:40]
+            logger.info(f"#{r.task.number:>3}  {title:<40}  {r.status:<8}  {elapsed_str:>8}")
+        logger.info("-" * 68)
+        success = sum(1 for r in results if r.status == "success")
+        failed = sum(1 for r in results if r.status == "failed")
+        skipped = sum(1 for r in results if r.status == "skipped")
+        logger.info(f"Total: {len(results)}  Success: {success}  Failed: {failed}  Skipped: {skipped}")
+
     def _process_task(self, task) -> IterationResult:
+        start = time.monotonic()
         try:
-            return self._do_process(task)
+            result = self._do_process(task)
         except Exception as e:
             logger.error(f"  Unexpected error: {e}")
             self.git.rollback(self.repo_path)
-            return IterationResult(task=task, status="failed", error=str(e))
+            result = IterationResult(task=task, status="failed", error=str(e))
+        result.elapsed = time.monotonic() - start
+        return result
 
     def _do_process(self, task) -> IterationResult:
+        logger.info(f"  → [1/4] Executing claude on issue #{task.number}...")
         exec_result = self.executor.run(task, self.repo_path)
         if not exec_result.success:
             self.git.rollback(self.repo_path)
@@ -76,9 +97,11 @@ class AutoLoop:
                 error=f"Executor failed (exit {exec_result.exit_code}): {exec_result.output[:200]}",
             )
 
+        logger.info(f"  → [2/4] Checking for file changes...")
         if not self.git.has_changes(self.repo_path):
             return IterationResult(task=task, status="skipped", error="No changes made")
 
+        logger.info(f"  → [3/4] Running tests...")
         verify = self.verifier.verify(self.repo_path)
         if not verify.passed:
             self.git.rollback(self.repo_path)
@@ -86,9 +109,11 @@ class AutoLoop:
                 task=task, status="failed", error=f"Tests failed:\n{verify.output[:500]}"
             )
 
+        logger.info(f"  → [4/4] Committing and pushing...")
+        diff_snapshot = self.git.get_diff(self.repo_path)
         commit_hash = self.git.commit_and_push(task, self.repo_path)
         self.git.close_issue(task.number, self.repo_path)
-        return IterationResult(task=task, status="success", commit=commit_hash)
+        return IterationResult(task=task, status="success", commit=commit_hash, diff=diff_snapshot)
 
     def _save_results(self, results: list[IterationResult]) -> None:
         summary = {
@@ -106,6 +131,8 @@ class AutoLoop:
                     "status": r.status,
                     "commit": r.commit,
                     "error": r.error,
+                    "elapsed": round(r.elapsed, 2) if r.elapsed is not None else None,
+                    "diff": r.diff,
                 }
                 for r in results
             ],

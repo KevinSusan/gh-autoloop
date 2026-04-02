@@ -228,3 +228,191 @@ class TestSaveResults:
         assert data["summary"]["success"] == 1
         assert data["summary"]["failed"] == 1
         assert data["summary"]["skipped"] == 1
+
+    def test_elapsed_field_saved_in_json(self, tmp_repo):
+        """elapsed time should be rounded and saved in the JSON output."""
+        loop = AutoLoop(repo_path=tmp_repo)
+        task = Task(number=5, title="Slow fix", body="desc")
+        result = IterationResult(task=task, status="success", commit="abc", elapsed=12.3456)
+        loop._save_results([result])
+
+        repo_name = Path(tmp_repo).name
+        data = json.loads((Path.home() / ".gh-autoloop" / "results" / f"{repo_name}.json").read_text())
+        assert data["results"][0]["elapsed"] == 12.35
+
+    def test_diff_field_saved_in_json(self, tmp_repo):
+        """diff snapshot should be stored in the JSON output."""
+        loop = AutoLoop(repo_path=tmp_repo)
+        task = Task(number=6, title="Diff fix", body="desc")
+        diff_text = "+added line\n-removed line\n"
+        result = IterationResult(task=task, status="success", commit="def", diff=diff_text)
+        loop._save_results([result])
+
+        repo_name = Path(tmp_repo).name
+        data = json.loads((Path.home() / ".gh-autoloop" / "results" / f"{repo_name}.json").read_text())
+        assert data["results"][0]["diff"] == diff_text
+
+    def test_elapsed_none_saved_as_null(self, tmp_repo):
+        """elapsed=None should serialize as JSON null."""
+        loop = AutoLoop(repo_path=tmp_repo)
+        task = Task(number=7, title="Quick fix", body="")
+        result = IterationResult(task=task, status="skipped", error="no changes")
+        loop._save_results([result])
+
+        repo_name = Path(tmp_repo).name
+        data = json.loads((Path.home() / ".gh-autoloop" / "results" / f"{repo_name}.json").read_text())
+        assert data["results"][0]["elapsed"] is None
+
+
+class TestProcessTaskElapsed:
+    """Tests for elapsed timing in AutoLoop._process_task()."""
+
+    def test_elapsed_is_set_on_success(self, tmp_repo):
+        """elapsed field must be a positive float after a successful task."""
+        loop = AutoLoop(repo_path=tmp_repo)
+        loop.executor = MagicMock()
+        loop.verifier = MagicMock()
+        loop.git = MagicMock()
+        task = Task(number=1, title="Bug", body="desc")
+        loop.executor.run.return_value = ExecutionResult(success=True, output="ok", exit_code=0)
+        loop.git.has_changes.return_value = True
+        loop.verifier.verify.return_value = VerifyResult(status="passed", output="")
+        loop.git.commit_and_push.return_value = "abc"
+
+        result = loop._process_task(task)
+
+        assert result.elapsed is not None
+        assert result.elapsed >= 0.0
+
+    def test_elapsed_is_set_on_failure(self, tmp_repo):
+        """elapsed field is set even when the task fails."""
+        loop = AutoLoop(repo_path=tmp_repo)
+        loop.executor = MagicMock()
+        loop.verifier = MagicMock()
+        loop.git = MagicMock()
+        task = Task(number=1, title="Bug", body="desc")
+        loop.executor.run.return_value = ExecutionResult(success=False, output="err", exit_code=1)
+
+        result = loop._process_task(task)
+
+        assert result.elapsed is not None
+        assert result.elapsed >= 0.0
+
+
+class TestDoProcessDiffCapture:
+    """Tests that diff snapshot is captured on success."""
+
+    def _make_loop(self, tmp_repo):
+        loop = AutoLoop(repo_path=tmp_repo)
+        loop.executor = MagicMock()
+        loop.verifier = MagicMock()
+        loop.git = MagicMock()
+        return loop
+
+    def test_diff_captured_on_success(self, tmp_repo):
+        """get_diff() is called and its result stored in IterationResult.diff."""
+        loop = self._make_loop(tmp_repo)
+        task = Task(number=1, title="Bug", body="desc")
+        loop.executor.run.return_value = ExecutionResult(success=True, output="ok", exit_code=0)
+        loop.git.has_changes.return_value = True
+        loop.verifier.verify.return_value = VerifyResult(status="passed", output="")
+        loop.git.commit_and_push.return_value = "abc"
+        loop.git.get_diff.return_value = "+some change\n"
+
+        result = loop._do_process(task)
+
+        assert result.diff == "+some change\n"
+        loop.git.get_diff.assert_called_once_with(loop.repo_path)
+
+    def test_diff_not_captured_on_failure(self, tmp_repo):
+        """get_diff() should NOT be called if execution fails."""
+        loop = self._make_loop(tmp_repo)
+        task = Task(number=1, title="Bug", body="desc")
+        loop.executor.run.return_value = ExecutionResult(success=False, output="err", exit_code=1)
+
+        loop._do_process(task)
+
+        loop.git.get_diff.assert_not_called()
+
+
+class TestPhaseLogging:
+    """Verify that _do_process emits the four stage INFO log messages."""
+
+    def _make_loop(self, tmp_repo):
+        loop = AutoLoop(repo_path=tmp_repo)
+        loop.executor = MagicMock()
+        loop.verifier = MagicMock()
+        loop.git = MagicMock()
+        return loop
+
+    def test_phase1_always_logged(self, tmp_repo, caplog):
+        """[1/4] must appear even when execution fails."""
+        import logging
+        loop = self._make_loop(tmp_repo)
+        task = Task(number=1, title="Bug", body="")
+        loop.executor.run.return_value = ExecutionResult(
+            success=False, output="err", exit_code=1
+        )
+        with caplog.at_level(logging.INFO, logger="gh_autoloop.loop"):
+            loop._do_process(task)
+        assert any("[1/4]" in m for m in caplog.messages)
+
+    def test_phase2_logged_after_exec_success(self, tmp_repo, caplog):
+        """[2/4] must appear once executor succeeds."""
+        import logging
+        loop = self._make_loop(tmp_repo)
+        task = Task(number=1, title="Bug", body="")
+        loop.executor.run.return_value = ExecutionResult(
+            success=True, output="ok", exit_code=0
+        )
+        loop.git.has_changes.return_value = False  # early exit after phase 2
+        with caplog.at_level(logging.INFO, logger="gh_autoloop.loop"):
+            loop._do_process(task)
+        assert any("[2/4]" in m for m in caplog.messages)
+
+    def test_phase3_logged_when_changes_present(self, tmp_repo, caplog):
+        """[3/4] must appear when there are changes to verify."""
+        import logging
+        loop = self._make_loop(tmp_repo)
+        task = Task(number=1, title="Bug", body="")
+        loop.executor.run.return_value = ExecutionResult(
+            success=True, output="ok", exit_code=0
+        )
+        loop.git.has_changes.return_value = True
+        loop.verifier.verify.return_value = VerifyResult(status="failed", output="err")
+        with caplog.at_level(logging.INFO, logger="gh_autoloop.loop"):
+            loop._do_process(task)
+        assert any("[3/4]" in m for m in caplog.messages)
+
+    def test_phase4_logged_on_success_path(self, tmp_repo, caplog):
+        """[4/4] must appear on the full success path."""
+        import logging
+        loop = self._make_loop(tmp_repo)
+        task = Task(number=1, title="Bug", body="")
+        loop.executor.run.return_value = ExecutionResult(
+            success=True, output="ok", exit_code=0
+        )
+        loop.git.has_changes.return_value = True
+        loop.verifier.verify.return_value = VerifyResult(status="passed", output="ok")
+        loop.git.get_diff.return_value = "+line"
+        loop.git.commit_and_push.return_value = "abc1234"
+        with caplog.at_level(logging.INFO, logger="gh_autoloop.loop"):
+            loop._do_process(task)
+        assert any("[4/4]" in m for m in caplog.messages)
+
+    def test_all_four_phases_logged_on_full_success(self, tmp_repo, caplog):
+        """All four phase markers must appear on the happy path."""
+        import logging
+        loop = self._make_loop(tmp_repo)
+        task = Task(number=1, title="Bug", body="")
+        loop.executor.run.return_value = ExecutionResult(
+            success=True, output="ok", exit_code=0
+        )
+        loop.git.has_changes.return_value = True
+        loop.verifier.verify.return_value = VerifyResult(status="passed", output="ok")
+        loop.git.get_diff.return_value = "+line"
+        loop.git.commit_and_push.return_value = "abc1234"
+        with caplog.at_level(logging.INFO, logger="gh_autoloop.loop"):
+            loop._do_process(task)
+        for phase in ("[1/4]", "[2/4]", "[3/4]", "[4/4]"):
+            assert any(phase in m for m in caplog.messages), f"Phase log missing: {phase}"

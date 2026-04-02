@@ -68,6 +68,12 @@ gh-autoloop run --repo /path/to/other/repo
 # Set timeout per task (default: 600 seconds)
 gh-autoloop run --timeout 300
 
+# Dry run: list issues that would be processed without executing
+gh-autoloop run --dry-run
+
+# Use a specific GitHub repo (useful when local remote differs)
+gh-autoloop run --gh-repo owner/repo
+
 # Verbose logging
 gh-autoloop run -v
 ```
@@ -81,7 +87,7 @@ gh-autoloop status --repo /path/to/repo
 
 ## Output
 
-Each run generates a `loop_result.json` in the target repo directory:
+Each run generates `~/.gh-autoloop/results/<repo-name>.json`:
 
 ```json
 {
@@ -97,17 +103,33 @@ Each run generates a `loop_result.json` in the target repo directory:
       "title": "Fix login bug",
       "status": "success",
       "commit": "abc1234",
-      "error": null
+      "error": null,
+      "elapsed": 47.32,
+      "diff": "diff --git a/..."
     },
     {
       "issue": 43,
       "title": "Add dark mode",
       "status": "failed",
       "commit": null,
-      "error": "Tests failed:\n1 failed, 2 passed"
+      "error": "Tests failed:\n1 failed, 2 passed",
+      "elapsed": 12.08,
+      "diff": null
     }
   ]
 }
+```
+
+A progress summary table is also printed at the end of each run:
+
+```
+=== Run Summary ===
+   #  Title                                     Status    Elapsed
+--------------------------------------------------------------------
+  42  Fix login bug                             success    47.3s
+  43  Add dark mode                             failed     12.1s
+--------------------------------------------------------------------
+Total: 2  Success: 1  Failed: 1  Skipped: 0
 ```
 
 ### Status meanings
@@ -130,7 +152,7 @@ cli.py                  # CLI entry point (argparse)
 ```
 
 **Design constraints:**
-- Total source code < 500 lines Python (currently ~366 lines)
+- Total source code < 500 lines Python (currently ~471 lines)
 - Zero third-party dependencies — only Python stdlib + subprocess
 - No AI SDKs (no anthropic/openai packages) — Claude Code CLI is the sole AI executor
 - Fail-safe: any task failure triggers automatic rollback, does not affect subsequent tasks
@@ -159,6 +181,28 @@ pytest tests/ -v
 # Format code
 ruff check --fix src/ tests/
 ruff format src/ tests/
+```
+
+### Windows Compatibility
+
+All `subprocess` calls use `encoding="utf-8", errors="replace"` to avoid `UnicodeDecodeError` on systems with non-UTF-8 default encodings (e.g., GBK on Chinese Windows).
+
+For Python 3.8 / older environments where `encoding=` on `Popen` is not available, the CLI entry point automatically sets:
+
+```python
+os.environ.setdefault("PYTHONUTF8", "1")
+```
+
+This forces UTF-8 I/O across all subprocesses. Alternatively, you can set the environment variable yourself before running:
+
+```bash
+# PowerShell
+$env:PYTHONUTF8 = "1"
+gh-autoloop run
+
+# CMD
+set PYTHONUTF8=1
+gh-autoloop run
 ```
 
 ## License

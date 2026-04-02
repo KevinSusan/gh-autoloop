@@ -134,3 +134,40 @@ class TestHasChanges:
             errors="replace",
             cwd="/repo",
         )
+
+
+class TestGetDiff:
+    """Tests for GitOps.get_diff()."""
+
+    @patch("gh_autoloop.git_ops.subprocess.run")
+    def test_returns_diff_output(self, mock_run, git_ops):
+        mock_run.return_value = MagicMock(returncode=0, stdout="+added line\n-removed line\n")
+        result = git_ops.get_diff("/repo")
+        assert result == "+added line\n-removed line\n"
+
+    @patch("gh_autoloop.git_ops.subprocess.run")
+    def test_truncates_to_max_chars(self, mock_run, git_ops):
+        long_diff = "x" * 5000
+        mock_run.return_value = MagicMock(returncode=0, stdout=long_diff)
+        result = git_ops.get_diff("/repo", max_chars=100)
+        assert len(result) == 100
+        assert result == "x" * 100
+
+    @patch("gh_autoloop.git_ops.subprocess.run")
+    def test_calls_git_diff_with_correct_args(self, mock_run, git_ops):
+        mock_run.return_value = MagicMock(returncode=0, stdout="")
+        git_ops.get_diff("/my/repo")
+        mock_run.assert_called_once_with(
+            ["git", "diff"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            cwd="/my/repo",
+        )
+
+    @patch("gh_autoloop.git_ops.subprocess.run")
+    def test_empty_diff_returns_empty_string(self, mock_run, git_ops):
+        mock_run.return_value = MagicMock(returncode=0, stdout="")
+        result = git_ops.get_diff("/repo")
+        assert result == ""

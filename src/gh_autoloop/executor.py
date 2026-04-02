@@ -17,7 +17,7 @@ class Executor:
             proc = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, cwd=repo_path,
+                text=True, cwd=repo_path, encoding='utf-8', errors='replace',
             )
         except OSError as e:
             return ExecutionResult(success=False, output=f"Failed to launch claude: {e}", exit_code=-1)
@@ -27,7 +27,7 @@ class Executor:
             assert proc.stdout is not None
             for line in proc.stdout:
                 output_lines.append(line)
-                logger.debug(line.rstrip())
+                logger.info(line.rstrip())
             proc.wait(timeout=self.timeout)
         except subprocess.TimeoutExpired:
             proc.kill()

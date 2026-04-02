@@ -127,3 +127,13 @@ class TestExecutorRun:
     def test_default_timeout_is_600(self, mock_popen, task):
         executor = Executor()
         assert executor.timeout == 600
+
+    @patch("gh_autoloop.executor.subprocess.Popen")
+    def test_popen_uses_utf8_encoding(self, mock_popen, executor, task):
+        """Popen must include utf-8 encoding for Windows GBK compatibility."""
+        mock_popen.return_value = make_popen_mock()
+        executor.run(task, "/repo")
+
+        kwargs = mock_popen.call_args[1]
+        assert kwargs["encoding"] == "utf-8"
+        assert kwargs["errors"] == "replace"
