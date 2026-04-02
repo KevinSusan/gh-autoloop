@@ -48,6 +48,8 @@ class TestPlannerGetTasks:
             ["gh", "issue", "list", "--json", "number,title,body", "--state", "open", "--limit", "100"],
             capture_output=True,
             text=True,
+            encoding='utf-8',
+            errors='replace',
             cwd="/my/repo",
             timeout=30,
         )
@@ -110,3 +112,24 @@ class TestPlannerGetTasks:
         mock_run.return_value = MagicMock(returncode=0, stdout="not json", stderr="")
         with pytest.raises(RuntimeError, match="Failed to parse gh output"):
             planner.get_tasks("/repo")
+
+    @patch("gh_autoloop.planner.subprocess.run")
+    def test_gh_repo_flag_adds_repo_arg(self, mock_run, planner):
+        mock_run.return_value = MagicMock(returncode=0, stdout="[]", stderr="")
+        planner.get_tasks("/repo", gh_repo="owner/repo")
+
+        cmd = mock_run.call_args[0][0]
+        assert "--repo" in cmd
+        assert "owner/repo" in cmd
+        
+        # Verify order/proximity (optional but good)
+        idx = cmd.index("--repo")
+        assert cmd[idx+1] == "owner/repo"
+
+    @patch("gh_autoloop.planner.subprocess.run")
+    def test_gh_repo_none_omits_repo_arg(self, mock_run, planner):
+        mock_run.return_value = MagicMock(returncode=0, stdout="[]", stderr="")
+        planner.get_tasks("/repo", gh_repo=None)
+
+        cmd = mock_run.call_args[0][0]
+        assert "--repo" not in cmd
